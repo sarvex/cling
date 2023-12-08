@@ -57,8 +57,9 @@ def _convert_subprocess_cmd(cmd):
 
 
 def _perror(e):
-    print("subprocess.CalledProcessError: Command '%s' returned non-zero exit status %s" % (
-        ' '.join(e.cmd), str(e.returncode)))
+    print(
+        f"subprocess.CalledProcessError: Command '{' '.join(e.cmd)}' returned non-zero exit status {str(e.returncode)}"
+    )
     cleanup()
     # Communicate return code to the calling program if any
     sys.exit(e.returncode)
@@ -89,22 +90,20 @@ def exec_subprocess_check_output(cmd, cwd):
 
 def travis_fold_start(tag):
     if os.environ.get('TRAVIS_BUILD_DIR', None):
-        print('travis_fold:start:cpt-%s:' % (tag))
+        print(f'travis_fold:start:cpt-{tag}:')
 
 
 def travis_fold_end(tag):
     if os.environ.get('TRAVIS_BUILD_DIR', None):
 
-        print('travis_fold:end:cpt-%s:' % (tag))
+        print(f'travis_fold:end:cpt-{tag}:')
 
 
 def box_draw_header():
-    msg = 'cling (' + platform.machine() + ')' \
-    + formatdate(time.time(), tzinfo()) 
+    msg = f'cling ({platform.machine()}){formatdate(time.time(), tzinfo())}'
     spaces_no = 80 - len(msg) - 4
     spacer = ' ' * spaces_no
-    msg = 'cling (' + platform.machine() + ')' \
-    + spacer + formatdate(time.time(), tzinfo())
+    msg = f'cling ({platform.machine()}){spacer}{formatdate(time.time(), tzinfo())}'
 
     if OS != 'Windows':
         print('''
@@ -149,7 +148,7 @@ def wget(url, out_dir, rename_file=None, retries=3):
     if u.code != 200 or retries == 0:
         exit()
     else:
-        print("  Connected to %s [200 OK]" % (url))
+        print(f"  Connected to {url} [200 OK]")
 
     try:
         file_size = u.headers.get('Content-Length')
@@ -163,66 +162,73 @@ def wget(url, out_dir, rename_file=None, retries=3):
         wget(url, out_dir, retries-1)
 
     else:
-        print("  Downloading: %s Bytes: %s" % (file_name, file_size))
+        print(f"  Downloading: {file_name} Bytes: {file_size}")
 
         file_size_dl = 0
         block_sz = 8192
 
-        f = open(os.path.join(out_dir, file_name), 'wb')
+        with open(os.path.join(out_dir, file_name), 'wb') as f:
+            while True:
+                buffer = u.read(block_sz)
+                if not buffer:
+                    break
 
-        while True:
-            buffer = u.read(block_sz)
-            if not buffer:
-                break
-
-            file_size_dl += len(buffer)
-            f.write(buffer)
-            status = r"%10d  [%3.2f%%]" % (file_size_dl,
-                                           file_size_dl * 100. / file_size)
-            status += chr(8) * (len(status) + 1)
-            print(status, end=' ')
-        f.close()
+                file_size_dl += len(buffer)
+                f.write(buffer)
+                status = r"%10d  [%3.2f%%]" % (file_size_dl,
+                                               file_size_dl * 100. / file_size)
+                status += chr(8) * (len(status) + 1)
+                print(status, end=' ')
         if rename_file:
             ffrom = os.path.join(out_dir, file_name)
             fto = os.path.join(out_dir, rename_file)
-            print('Moving file: ' + ffrom + ' -> ' + fto)
+            print(f'Moving file: {ffrom} -> {fto}')
             os.rename(ffrom, fto)
         print()
 
 
 def fetch_llvm(llvm_revision):
     box_draw("Fetch source files")
-    print('Last known good LLVM revision is: ' + llvm_revision)
-    print('Current working directory is: ' + workdir + '\n')
+    print(f'Last known good LLVM revision is: {llvm_revision}')
+    print(f'Current working directory is: {workdir}' + '\n')
 
     if "github.com" in LLVM_GIT_URL and args['create_dev_env'] is None and args['use_wget']:
         _, _, _, user, repo = LLVM_GIT_URL.split('/')
         print('Fetching LLVM ...')
-        wget(url='https://github.com/%s/%s' % (user, repo.replace('.git', '')) +
-                 '/archive/cling-patches-r%s.tar.gz' % llvm_revision,
-             out_dir=workdir)
+        wget(
+            url=(
+                f"https://github.com/{user}/{repo.replace('.git', '')}"
+                + f'/archive/cling-patches-r{llvm_revision}.tar.gz'
+            ),
+            out_dir=workdir,
+        )
 
-        print('Extracting: ' + os.path.join(workdir, 'cling-patches-r%s.tar.gz' % llvm_revision))
-        extract_tar(workdir, 'cling-patches-r%s.tar.gz' % llvm_revision)
+        print(
+            f"Extracting: {os.path.join(workdir, f'cling-patches-r{llvm_revision}.tar.gz')}"
+        )
+        extract_tar(workdir, f'cling-patches-r{llvm_revision}.tar.gz')
 
-        os.rename(os.path.join(workdir,
-                               'llvm-cling-patches-r%s' % llvm_revision),
-                  srcdir)
+        os.rename(
+            os.path.join(workdir, f'llvm-cling-patches-r{llvm_revision}'),
+            srcdir,
+        )
 
-        if os.path.isfile(os.path.join(workdir, 'cling-patches-r%s.tar.gz' % llvm_revision)):
-            print("Remove file: " + os.path.join(workdir, 'cling-patches-r%s.tar.gz' % llvm_revision))
-            os.remove(os.path.join(workdir, 'cling-patches-r%s.tar.gz' % llvm_revision))
+        if os.path.isfile(
+            os.path.join(workdir, f'cling-patches-r{llvm_revision}.tar.gz')
+        ):
+            print(
+                f"Remove file: {os.path.join(workdir, f'cling-patches-r{llvm_revision}.tar.gz')}"
+            )
+            os.remove(os.path.join(workdir, f'cling-patches-r{llvm_revision}.tar.gz'))
 
         print()
         return
 
     def checkout():
-        exec_subprocess_call('git checkout cling-patches-r%s' % llvm_revision,
-                             srcdir)
+        exec_subprocess_call(f'git checkout cling-patches-r{llvm_revision}', srcdir)
 
     def get_fresh_llvm():
-        exec_subprocess_call('git clone %s %s' % (LLVM_GIT_URL, srcdir),
-                             workdir)
+        exec_subprocess_call(f'git clone {LLVM_GIT_URL} {srcdir}', workdir)
         checkout()
 
     def update_old_llvm():
@@ -232,8 +238,9 @@ def fetch_llvm(llvm_revision):
 
         checkout()
         exec_subprocess_call('git fetch --tags', srcdir)
-        exec_subprocess_call('git pull origin refs/tags/cling-patches-r%s'
-                             % llvm_revision, srcdir)
+        exec_subprocess_call(
+            f'git pull origin refs/tags/cling-patches-r{llvm_revision}', srcdir
+        )
 
     if os.path.isdir(srcdir):
         update_old_llvm()
@@ -258,36 +265,36 @@ def extract_tar(extractpath, tarfilename):
 def download_llvm_binary():
     global llvm_flags, tar_required
     box_draw("Fetching LLVM binary")
-    print('Current working directory is: ' + workdir + '\n')
-    if DIST == "Ubuntu":
+    print(f'Current working directory is: {workdir}' + '\n')
+    if DIST == 'MacOSX':
+        subprocess.call(
+            "sudo -H {0} -m pip install lit".format(sys.executable), shell=True
+            )
+        if tar_required is False:
+            llvm_dir = os.path.join("/opt", "local", "libexec", f"llvm-{llvm_vers}")
+            llvm_config_path = os.path.join(llvm_dir, "bin", "llvm-config")
+            if llvm_config_path[-1:] == "\n":
+                llvm_config_path = llvm_config_path[:-1]
+            llvm_flags = llvm_flag_setter(llvm_dir, llvm_config_path)
+    elif DIST == "Ubuntu":
         subprocess.call(
             "sudo -H {0} -m pip install lit".format(sys.executable), shell=True
             )
         llvm_config_path = exec_subprocess_check_output("which llvm-config-{0}".format(llvm_vers), workdir)
         if llvm_config_path != '' and tar_required is False:
-            llvm_dir = os.path.join("/usr", "lib", "llvm-"+llvm_vers)
+            llvm_dir = os.path.join("/usr", "lib", f"llvm-{llvm_vers}")
             if llvm_config_path[-1:] == "\n":
                 llvm_config_path = llvm_config_path[:-1]
             llvm_flags = llvm_flag_setter(llvm_dir, llvm_config_path)
         else:
             tar_required = True
-    elif DIST == 'MacOSX':
-        subprocess.call(
-            "sudo -H {0} -m pip install lit".format(sys.executable), shell=True
-            )
-        if tar_required is False:
-            llvm_dir = os.path.join("/opt", "local", "libexec", "llvm-"+llvm_vers)
-            llvm_config_path = os.path.join(llvm_dir, "bin", "llvm-config")
-            if llvm_config_path[-1:] == "\n":
-                llvm_config_path = llvm_config_path[:-1]
-            llvm_flags = llvm_flag_setter(llvm_dir, llvm_config_path)
     else:
         raise Exception("Building clang using LLVM binary not possible. Please invoke cpt without --with-llvm-binary and --with-llvm-tar flags")
     if tar_required:
         if DIST == 'Ubuntu':
-            llvm_dir = os.path.join("/usr", "lib", "llvm-"+llvm_vers)
+            llvm_dir = os.path.join("/usr", "lib", f"llvm-{llvm_vers}")
         elif DIST == 'MacOSX':
-            llvm_dir = os.path.join("/opt", "local", "libexec", "llvm-"+llvm_vers)
+            llvm_dir = os.path.join("/opt", "local", "libexec", f"llvm-{llvm_vers}")
         llvm_flags = llvm_flag_setter(llvm_dir, llvm_config_path)
         if DIST == "Ubuntu" and REV == '16.04' and is_os_64bit():
             download_link = 'http://releases.llvm.org/5.0.2/clang+llvm-5.0.2-x86_64-linux-gnu-ubuntu-16.04.tar.xz'
@@ -321,45 +328,59 @@ class RepoCache(object):
             exec_subprocess_call('git clean -f -x -d', self.__workDir)
             exec_subprocess_call('git fetch --tags', self.__workDir)
         else:
-            exec_subprocess_call('git clone %s' % self.__url, self.__projDir)
+            exec_subprocess_call(f'git clone {self.__url}', self.__projDir)
 
-        exec_subprocess_call('git checkout %s' % branch, self.__workDir)
+        exec_subprocess_call(f'git checkout {branch}', self.__workDir)
 
 
 def fetch_clang(llvm_revision):
     if "github.com" in CLANG_GIT_URL and args['create_dev_env'] is None and args['use_wget']:
         _, _, _, user, repo = CLANG_GIT_URL.split('/')
         print('Fetching Clang ...')
-        wget(url='https://github.com/%s/%s' % (user, repo.replace('.git', '')) +
-                 '/archive/cling-patches-r%s.tar.gz' % llvm_revision,
-             out_dir=workdir)
+        wget(
+            url=(
+                f"https://github.com/{user}/{repo.replace('.git', '')}"
+                + f'/archive/cling-patches-r{llvm_revision}.tar.gz'
+            ),
+            out_dir=workdir,
+        )
 
-        print('Extracting: ' + os.path.join(workdir, 'cling-patches-r%s.tar.gz' % llvm_revision))
-        extract_tar(os.path.join(srcdir, 'tools'), 'cling-patches-r%s.tar.gz' % llvm_revision)
+        print(
+            f"Extracting: {os.path.join(workdir, f'cling-patches-r{llvm_revision}.tar.gz')}"
+        )
+        extract_tar(
+            os.path.join(srcdir, 'tools'),
+            f'cling-patches-r{llvm_revision}.tar.gz',
+        )
 
-        os.rename(os.path.join(srcdir, 'tools', 'clang-cling-patches-r%s' % llvm_revision),
-                  os.path.join(srcdir, 'tools', 'clang'))
+        os.rename(
+            os.path.join(
+                srcdir, 'tools', f'clang-cling-patches-r{llvm_revision}'
+            ),
+            os.path.join(srcdir, 'tools', 'clang'),
+        )
 
-        if os.path.isfile(os.path.join(workdir, 'cling-patches-r%s.tar.gz' % llvm_revision)):
-            print("Remove file: " + os.path.join(workdir, 'cling-patches-r%s.tar.gz' % llvm_revision))
-            os.remove(os.path.join(workdir, 'cling-patches-r%s.tar.gz' % llvm_revision))
+        if os.path.isfile(
+            os.path.join(workdir, f'cling-patches-r{llvm_revision}.tar.gz')
+        ):
+            print(
+                f"Remove file: {os.path.join(workdir, f'cling-patches-r{llvm_revision}.tar.gz')}"
+            )
+            os.remove(os.path.join(workdir, f'cling-patches-r{llvm_revision}.tar.gz'))
 
         print()
         return
 
-    if args["with_llvm_binary"]:
-        dir = workdir
-    else:
-        dir = os.path.join(srcdir, 'tools')
+    dir = workdir if args["with_llvm_binary"] else os.path.join(srcdir, 'tools')
     global clangdir
 
     clangdir = os.path.join(dir, 'clang')
 
     def checkout():
-        exec_subprocess_call('git checkout cling-patches-r%s' % llvm_revision, clangdir)
+        exec_subprocess_call(f'git checkout cling-patches-r{llvm_revision}', clangdir)
 
     def get_fresh_clang():
-        exec_subprocess_call('git clone %s' % CLANG_GIT_URL, dir)
+        exec_subprocess_call(f'git clone {CLANG_GIT_URL}', dir)
         checkout()
 
     def update_old_clang():
@@ -372,8 +393,10 @@ def fetch_clang(llvm_revision):
         checkout()
 
         exec_subprocess_call('git fetch --tags', clangdir)
-        exec_subprocess_call('git pull origin refs/tags/cling-patches-r%s' % llvm_revision,
-                             clangdir)
+        exec_subprocess_call(
+            f'git pull origin refs/tags/cling-patches-r{llvm_revision}',
+            clangdir,
+        )
 
     if os.path.isdir(clangdir):
         update_old_clang()
@@ -392,24 +415,21 @@ def fetch_cling(arg):
 
     def get_fresh_cling():
         if CLING_BRANCH:
-            exec_subprocess_call('git clone --depth=10 --branch %s %s cling'
-                                 % (CLING_BRANCH, CLING_GIT_URL),
-                                 os.path.join(dir, 'tools'))
+            exec_subprocess_call(
+                f'git clone --depth=10 --branch {CLING_BRANCH} {CLING_GIT_URL} cling',
+                os.path.join(dir, 'tools'),
+            )
         else:
-            exec_subprocess_call('git clone %s cling' % CLING_GIT_URL,
-                                 os.path.join(dir, 'tools'))
+            exec_subprocess_call(
+                f'git clone {CLING_GIT_URL} cling', os.path.join(dir, 'tools')
+            )
 
         # if arg == 'last-stable':
         #    checkout_branch = exec_subprocess_check_output('git describe --match v* --abbrev=0 --tags | head -n 1',
         #                                                   CLING_SRC_DIR)
 
-        if arg == 'master':
-            checkout_branch = 'master'
-        else:
-            checkout_branch = arg
-
-        exec_subprocess_call('git checkout %s' % checkout_branch,
-                             CLING_SRC_DIR)
+        checkout_branch = 'master' if arg == 'master' else arg
+        exec_subprocess_call(f'git checkout {checkout_branch}', CLING_SRC_DIR)
 
     def update_old_cling():
         # exec_subprocess_call('git stash', CLING_SRC_DIR)
@@ -422,16 +442,10 @@ def fetch_cling(arg):
         #    checkout_branch = exec_subprocess_check_output('git describe --match v* --abbrev=0 --tags | head -n 1',
         #                                                   CLING_SRC_DIR)
 
-        if arg == 'master':
-            checkout_branch = 'master'
-        else:
-            checkout_branch = arg
+        checkout_branch = 'master' if arg == 'master' else arg
+        exec_subprocess_call(f'git checkout {checkout_branch}', CLING_SRC_DIR)
 
-        exec_subprocess_call('git checkout %s' % checkout_branch,
-                             CLING_SRC_DIR)
-
-        exec_subprocess_call('git pull origin %s' % checkout_branch,
-                             CLING_SRC_DIR)
+        exec_subprocess_call(f'git pull origin {checkout_branch}', CLING_SRC_DIR)
 
     if os.path.isdir(CLING_SRC_DIR):
         update_old_cling()
@@ -450,10 +464,10 @@ def set_version():
                                             CLING_SRC_DIR).strip()
 
     if '~dev' in VERSION:
-        VERSION = VERSION + '-' + REVISION[:7]
+        VERSION = f'{VERSION}-{REVISION[:7]}'
 
-    print('Version: ' + VERSION)
-    print('Revision: ' + REVISION)
+    print(f'Version: {VERSION}')
+    print(f'Revision: {REVISION}')
     return REVISION
 
 
@@ -492,9 +506,9 @@ def set_vars():
                 CLANG_VERSION = re.sub('^#define CLANG_VERSION ',
                                        '', line).strip()
 
-    print('EXEEXT: ' + EXEEXT)
-    print('SHLIBEXT: ' + SHLIBEXT)
-    print('CLANG_VERSION: ' + CLANG_VERSION)
+    print(f'EXEEXT: {EXEEXT}')
+    print(f'SHLIBEXT: {SHLIBEXT}')
+    print(f'CLANG_VERSION: {CLANG_VERSION}')
 
 
 def set_vars_for_lit():
@@ -523,8 +537,7 @@ def set_vars_for_lit():
                                "lit.site.cfg.in"), "w") as file:
             file.writelines(lines)
     elif DIST == 'MacOSX' and tar_required is False:
-        llvm_dir = os.path.join("/opt", "local", "libexec",
-                                "llvm-" + llvm_vers)
+        llvm_dir = os.path.join("/opt", "local", "libexec", f"llvm-{llvm_vers}")
         with open(os.path.join(CLING_SRC_DIR, "test",
                                "lit.site.cfg.in"), "r") as file:
             lines = file.readlines()
@@ -563,17 +576,17 @@ class Build(object):
             self.make(target)
 
     def config(self, configFlags=''):
-        box_draw('Configure Cling with CMake ' + configFlags)
-        exec_subprocess_call('%s %s' % (CMAKE, configFlags),
-                             LLVM_OBJ_ROOT, True)
+        box_draw(f'Configure Cling with CMake {configFlags}')
+        exec_subprocess_call(f'{CMAKE} {configFlags}', LLVM_OBJ_ROOT, True)
 
     def make(self, targets, flags=''):
         box_draw('Building %s (using %d cores)' % (targets, self.cores))
         if self.win32:
-            flags += ' --config %s' % self.buildType
+            flags += f' --config {self.buildType}'
             for target in targets.split():
-                exec_subprocess_call('%s --build . --target %s %s'
-                                     % (CMAKE, target, flags), LLVM_OBJ_ROOT)
+                exec_subprocess_call(
+                    f'{CMAKE} --build . --target {target} {flags}', LLVM_OBJ_ROOT
+                )
         else:
             exec_subprocess_call('make -j %d %s %s' % (self.cores,
                                                        targets, flags),
@@ -587,22 +600,23 @@ def compile(arg):
 
     # Cleanup previous installation directory if any
     if os.path.isdir(prefix):
-        print("Remove directory: " + prefix)
+        print(f"Remove directory: {prefix}")
         shutil.rmtree(prefix)
 
     # Cleanup previous build directory if exists
     if os.path.isdir(LLVM_OBJ_ROOT):
-        print("Using previous build directory: " + LLVM_OBJ_ROOT)
+        print(f"Using previous build directory: {LLVM_OBJ_ROOT}")
     else:
-        print("Creating build directory: " + LLVM_OBJ_ROOT)
+        print(f"Creating build directory: {LLVM_OBJ_ROOT}")
         os.makedirs(LLVM_OBJ_ROOT)
 
-    # FIX: Target isn't being set properly on Travis OS X
-    # Either because ccache(when enabled) or maybe the virtualization environment
     if TRAVIS_BUILD_DIR and OS == 'Darwin':
-        triple = exec_subprocess_check_output('sh %s/cmake/config.guess' % srcdir, srcdir)
-        if triple:
-            EXTRA_CMAKE_FLAGS = ' -DLLVM_HOST_TRIPLE="%s" ' % triple.rstrip() + EXTRA_CMAKE_FLAGS
+        if triple := exec_subprocess_check_output(
+            f'sh {srcdir}/cmake/config.guess', srcdir
+        ):
+            EXTRA_CMAKE_FLAGS = (
+                f' -DLLVM_HOST_TRIPLE="{triple.rstrip()}" {EXTRA_CMAKE_FLAGS}'
+            )
 
     build = Build()
     cmake_config_flags = (srcdir + ' -DLLVM_BUILD_TOOLS=Off -DCMAKE_BUILD_TYPE={0} -DCMAKE_INSTALL_PREFIX={1} '
@@ -635,14 +649,14 @@ def compile_for_binary(arg):
 
     # Cleanup previous installation directory if any
     if os.path.isdir(prefix):
-        print("Remove directory: " + prefix)
+        print(f"Remove directory: {prefix}")
         shutil.rmtree(prefix)
 
     # Cleanup previous build directory if exists
     if os.path.isdir(LLVM_OBJ_ROOT):
-        print("Using previous build directory: " + LLVM_OBJ_ROOT)
+        print(f"Using previous build directory: {LLVM_OBJ_ROOT}")
     else:
-        print("Creating build directory: " + LLVM_OBJ_ROOT)
+        print(f"Creating build directory: {LLVM_OBJ_ROOT}")
         os.makedirs(LLVM_OBJ_ROOT)
 
     build = Build()
@@ -650,8 +664,8 @@ def compile_for_binary(arg):
                           .format(build.buildType, TMP_PREFIX) + llvm_flags +
                           ' -DLLVM_TARGETS_TO_BUILD=host;NVPTX -DCLING_CXX_HEADERS=ON -DCLING_INCLUDE_TESTS=ON' +
                           EXTRA_CMAKE_FLAGS)
-    box_draw('Configure Cling with CMake ' + cmake_config_flags)
-    exec_subprocess_call('%s %s' % (CMAKE, cmake_config_flags), LLVM_OBJ_ROOT, True)
+    box_draw(f'Configure Cling with CMake {cmake_config_flags}')
+    exec_subprocess_call(f'{CMAKE} {cmake_config_flags}', LLVM_OBJ_ROOT, True)
     box_draw('Building %s (using %d cores)' % ("cling", multiprocessing.cpu_count()))
     exec_subprocess_call('make -j%d %s' % (multiprocessing.cpu_count(), "cling"), LLVM_OBJ_ROOT)
 
@@ -675,12 +689,12 @@ def install_prefix():
 
     box_draw("Filtering Cling's libraries and binaries")
 
-    regex_array = []
     regex_filename = os.path.join(CPT_SRC_DIR, 'dist-files.txt')
-    for line in open(regex_filename).read().splitlines():
-        if line and not line.startswith('#'):
-            regex_array.append(line)
-
+    regex_array = [
+        line
+        for line in open(regex_filename).read().splitlines()
+        if line and not line.startswith('#')
+    ]
     for root, dirs, files in os.walk(TMP_PREFIX):
         for file in files:
             f = os.path.join(root, file).replace(TMP_PREFIX, '')
@@ -688,9 +702,9 @@ def install_prefix():
                 f = f.replace('\\', '/')
             for regex in regex_array:
                 if args['with_verbose_output']:
-                    print("Applying regex " + regex + " to file " + f)
+                    print(f"Applying regex {regex} to file {f}")
                 if re.search(regex, f):
-                    print("Adding to final binary " + f)
+                    print(f"Adding to final binary {f}")
                     if not os.path.isdir(os.path.join(prefix, os.path.dirname(f))):
                         os.makedirs(os.path.join(prefix, os.path.dirname(f)))
                     shutil.copy(os.path.join(TMP_PREFIX, f), os.path.join(prefix, f))
@@ -707,12 +721,12 @@ def install_prefix_for_binary():
 
     box_draw("Filtering Cling's libraries and binaries")
 
-    regex_array = []
     regex_filename = os.path.join(CPT_SRC_DIR, 'dist-files.txt')
-    for line in open(regex_filename).read().splitlines():
-        if line and not line.startswith('#'):
-            regex_array.append(line)
-
+    regex_array = [
+        line
+        for line in open(regex_filename).read().splitlines()
+        if line and not line.startswith('#')
+    ]
     for root, dirs, files in os.walk(TMP_PREFIX):
         for file in files:
             f = os.path.join(root, file).replace(TMP_PREFIX, '')
@@ -720,9 +734,9 @@ def install_prefix_for_binary():
                 f = f.replace('\\', '/')
             for regex in regex_array:
                 if args['with_verbose_output']:
-                    print("Applying regex " + regex + " to file " + f)
+                    print(f"Applying regex {regex} to file {f}")
                 if re.search(regex, f):
-                    print("Adding to final binary " + f)
+                    print(f"Adding to final binary {f}")
                     if not os.path.isdir(os.path.join(prefix, os.path.dirname(f))):
                         os.makedirs(os.path.join(prefix, os.path.dirname(f)))
                     shutil.copy(os.path.join(TMP_PREFIX, f), os.path.join(prefix, f))
@@ -746,14 +760,12 @@ def runSingleTest(test, Idx=2, Recurse=True):
         flags = [[''], ['-Xclang -verify']]
         flags.append([f[0] for f in flags])
         for flag in flags[Idx]:
-            cmd = 'cat %s | %s --nologo 2>&1 %s' % (test, cling, flag)
-            print('** %s **' % cmd)
+            cmd = f'cat {test} | {cling} --nologo 2>&1 {flag}'
+            print(f'** {cmd} **')
             subprocess.check_call(cmd, cwd=os.path.dirname(test), shell=True)
 
     except Exception as err:
-        print("Error running '%s': %s" % (test, err))
-
-        pass
+        print(f"Error running '{test}': {err}")
 
 
 def setup_tests():
@@ -802,7 +814,7 @@ def setup_tests():
         if tar_required:
             llvm_dir = copy.copy(srcdir)
         else:
-            llvm_dir = os.path.join("/usr", "lib", "llvm-" + llvm_vers, "build")
+            llvm_dir = os.path.join("/usr", "lib", f"llvm-{llvm_vers}", "build")
         subprocess.Popen(
             ["sudo mkdir {0}/utils/".format(llvm_dir)],
             cwd=os.path.join(CLING_SRC_DIR, "tools"),
@@ -835,8 +847,8 @@ def test_cling():
 
 def tarball():
     box_draw("Compress binaries into a bzip2 tarball")
-    tar = tarfile.open(prefix + '.tar.bz2', 'w:bz2')
-    print('Creating archive: ' + os.path.basename(prefix) + '.tar.bz2')
+    tar = tarfile.open(f'{prefix}.tar.bz2', 'w:bz2')
+    print(f'Creating archive: {os.path.basename(prefix)}.tar.bz2')
 
     tar.add(prefix, arcname=os.path.basename(prefix))
     tar.close()
@@ -859,14 +871,14 @@ def cleanup():
 
     box_draw("Clean up")
     if os.path.isdir(LLVM_OBJ_ROOT):
-        print("Skipping build directory: " + LLVM_OBJ_ROOT)
+        print(f"Skipping build directory: {LLVM_OBJ_ROOT}")
 
     if os.path.isdir(prefix):
-        print("Remove directory: " + prefix)
+        print(f"Remove directory: {prefix}")
         shutil.rmtree(prefix)
 
     if os.path.isdir(TMP_PREFIX):
-        print("Remove directory: " + TMP_PREFIX)
+        print(f"Remove directory: {TMP_PREFIX}")
         shutil.rmtree(TMP_PREFIX)
 
     if os.path.isfile(os.path.join(workdir, 'cling.nsi')):
@@ -874,28 +886,34 @@ def cleanup():
         os.remove(os.path.join(workdir, 'cling.nsi'))
 
     if args['current_dev'] == 'deb' or args['last_stable'] == 'deb' or args['deb_tag']:
-        print('Create output directory: ' + os.path.join(workdir, 'cling-%s-1' % (VERSION)))
-        os.makedirs(os.path.join(workdir, 'cling-%s-1' % (VERSION)))
+        print(
+            f"Create output directory: {os.path.join(workdir, f'cling-{VERSION}-1')}"
+        )
+        os.makedirs(os.path.join(workdir, f'cling-{VERSION}-1'))
 
-        for file in glob.glob(os.path.join(workdir, 'cling_%s*' % (VERSION))):
-            print(file + '->' + os.path.join(workdir, 'cling-%s-1' % (VERSION), os.path.basename(file)))
-            shutil.move(file, os.path.join(workdir, 'cling-%s-1' % (VERSION)))
+        for file in glob.glob(os.path.join(workdir, f'cling_{VERSION}*')):
+            print(
+                f"{file}->{os.path.join(workdir, f'cling-{VERSION}-1', os.path.basename(file))}"
+            )
+            shutil.move(file, os.path.join(workdir, f'cling-{VERSION}-1'))
 
-        if not os.listdir(os.path.join(workdir, 'cling-%s-1' % (VERSION))):
-            os.rmdir(os.path.join(workdir, 'cling-%s-1' % (VERSION)))
+        if not os.listdir(os.path.join(workdir, f'cling-{VERSION}-1')):
+            os.rmdir(os.path.join(workdir, f'cling-{VERSION}-1'))
 
     if args['current_dev'] == 'dmg' or args['last_stable'] == 'dmg' or args['dmg_tag']:
-        if os.path.isfile(os.path.join(workdir, 'cling-%s-temp.dmg' % (VERSION))):
-            print("Remove file: " + os.path.join(workdir, 'cling-%s-temp.dmg' % (VERSION)))
-            os.remove(os.path.join(workdir, 'cling-%s-temp.dmg' % (VERSION)))
+        if os.path.isfile(os.path.join(workdir, f'cling-{VERSION}-temp.dmg')):
+            print(f"Remove file: {os.path.join(workdir, f'cling-{VERSION}-temp.dmg')}")
+            os.remove(os.path.join(workdir, f'cling-{VERSION}-temp.dmg'))
 
         if os.path.isdir(os.path.join(workdir, 'Cling.app')):
             print('Remove directory: ' + 'Cling.app')
             shutil.rmtree(os.path.join(workdir, 'Cling.app'))
 
-        if os.path.isdir(os.path.join(workdir, 'cling-%s-temp.dmg' % (VERSION))):
-            print('Remove directory: ' + os.path.join(workdir, 'cling-%s-temp.dmg' % (VERSION)))
-            shutil.rmtree(os.path.join(workdir, 'cling-%s-temp.dmg' % (VERSION)))
+        if os.path.isdir(os.path.join(workdir, f'cling-{VERSION}-temp.dmg')):
+            print(
+                f"Remove directory: {os.path.join(workdir, f'cling-{VERSION}-temp.dmg')}"
+            )
+            shutil.rmtree(os.path.join(workdir, f'cling-{VERSION}-temp.dmg'))
 
         if os.path.isdir(os.path.join(workdir, 'Install')):
             print('Remove directory: ' + os.path.join(workdir, 'Install'))
@@ -923,10 +941,9 @@ def check_ubuntu(pkg):
         SIGNING_USER = exec_subprocess_check_output('gpg --fingerprint | grep uid | sed s/"uid *"//g', '/').strip()
         if SIGNING_USER == '':
             print(pkg.ljust(20) + '[INSTALLED - NOT SETUP]'.ljust(30))
-            return True
         else:
             print(pkg.ljust(20) + '[OK]'.ljust(30))
-            return True
+        return True
     elif pkg == "cmake":
         CMAKE = os.environ.get('CMAKE', 'cmake')
         output = exec_subprocess_check_output('{cmake} --version'.format(cmake=CMAKE), '/').strip().split('\n')[0].split()
@@ -956,7 +973,7 @@ def check_ubuntu(pkg):
         else:
             print(pkg.ljust(20) + '[NOT INSTALLED]'.ljust(30))
             return False
-    elif pkg == 'llvm-'+llvm_vers+'-dev':
+    elif pkg == f'llvm-{llvm_vers}-dev':
         if exec_subprocess_check_output('which llvm-config-{0}'.format(llvm_vers), workdir) != '':
             print(pkg.ljust(20) + '[OK]'.ljust(30))
             return True
@@ -974,7 +991,9 @@ def check_ubuntu(pkg):
 
 def tarball_deb():
     box_draw("Compress compiled binaries into a bzip2 tarball")
-    tar = tarfile.open(os.path.join(workdir, 'cling_' + VERSION + '.orig.tar.bz2'), 'w:bz2')
+    tar = tarfile.open(
+        os.path.join(workdir, f'cling_{VERSION}.orig.tar.bz2'), 'w:bz2'
+    )
     tar.add(prefix, arcname=os.path.basename(prefix))
     tar.close()
 
@@ -991,67 +1010,30 @@ def debianize():
     os.makedirs(os.path.join(prefix, 'debian', 'source'))
 
     print("Create file: " + os.path.join(prefix, 'debian', 'source', 'format'))
-    f = open(os.path.join(prefix, 'debian', 'source', 'format'), 'w')
-    f.write('3.0 (quilt)')
-    f.close()
-
+    with open(os.path.join(prefix, 'debian', 'source', 'format'), 'w') as f:
+        f.write('3.0 (quilt)')
     print("Create file: " + os.path.join(prefix, 'debian', 'source', 'lintian-overrides'))
-    f = open(os.path.join(prefix, 'debian', 'source', 'lintian-overrides'), 'w')
-    f.write('cling source: source-is-missing')
-    f.close()
-
-    # This section is no longer valid. I have kept it as a reference if we plan to
-    # distribute libcling.so or any other library with the package.
-    if False:
-        print('Create file: ' + os.path.join(prefix, 'debian', 'postinst'))
-        template = '''
-#! /bin/sh -e
-# postinst script for cling
-#
-# see: dh_installdeb(1)
-
-set -e
-
-# Call ldconfig on libclang.so
-ldconfig -l /usr/lib/libclang.so
-
-# dh_installdeb will replace this with shell code automatically
-# generated by other debhelper scripts.
-
-#DEBHELPER#
-
-exit 0
-'''
-        f = open(os.path.join(prefix, 'debian', 'postinst'), 'w')
-        f.write(template)
-        f.close()
-
+    with open(os.path.join(prefix, 'debian', 'source', 'lintian-overrides'), 'w') as f:
+        f.write('cling source: source-is-missing')
     print('Create file: ' + os.path.join(prefix, 'debian', 'cling.install'))
-    f = open(os.path.join(prefix, 'debian', 'cling.install'), 'w')
-    template = '''
+    with open(os.path.join(prefix, 'debian', 'cling.install'), 'w') as f:
+        template = '''
 bin/* /usr/bin
 docs/* /usr/share/doc
 include/* /usr/include
 lib/* /usr/lib
 share/* /usr/share
 '''
-    f.write(template.strip())
-    f.close()
-
+        f.write(template.strip())
     print('Create file: ' + os.path.join(prefix, 'debian', 'compact'))
-    # Optimize binary compression
-    f = open(os.path.join(prefix, 'debian', 'compact'), 'w')
-    f.write("7")
-    f.close()
-
+    with open(os.path.join(prefix, 'debian', 'compact'), 'w') as f:
+        f.write("7")
     print('Create file: ' + os.path.join(prefix, 'debian', 'compat'))
-    f = open(os.path.join(prefix, 'debian', 'compat'), 'w')
-    f.write("9")
-    f.close()
-
+    with open(os.path.join(prefix, 'debian', 'compat'), 'w') as f:
+        f.write("9")
     print('Create file: ' + os.path.join(prefix, 'debian', 'control'))
-    f = open(os.path.join(prefix, 'debian', 'control'), 'w')
-    template = '''
+    with open(os.path.join(prefix, 'debian', 'control'), 'w') as f:
+        template = '''
 Source: cling
 Section: devel
 Priority: optional
@@ -1081,12 +1063,10 @@ Description: interactive C++ interpreter
  data of the Large Hadron Collider (LHC) experiments. The
  backward-compatibility with CINT is major priority during the development.
 ''' % (SIGNING_USER)
-    f.write(template.strip())
-    f.close()
-
+        f.write(template.strip())
     print('Create file: ' + os.path.join(prefix, 'debian', 'copyright'))
-    f = open(os.path.join(prefix, 'debian', 'copyright'), 'w')
-    template = '''
+    with open(os.path.join(prefix, 'debian', 'copyright'), 'w') as f:
+        template = '''
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: cling
 Source: http://root.cern.ch/gitweb?p=cling.git;a=summary
@@ -1121,12 +1101,10 @@ Comment: Cling can also be licensed under University of Illinois/NCSA
  .
  More information here: http://root.cern.ch/gitweb?p=cling.git;a=blob_plain;f=LICENSE.TXT;hb=HEAD
 '''
-    f.write(template.strip())
-    f.close()
-
+        f.write(template.strip())
     print('Create file: ' + os.path.join(prefix, 'debian', 'rules'))
-    f = open(os.path.join(prefix, 'debian', 'rules'), 'w')
-    template = '''
+    with open(os.path.join(prefix, 'debian', 'rules'), 'w') as f:
+        template = '''
 #!/usr/bin/make -f
 # -*- makefile -*-
 
@@ -1137,69 +1115,54 @@ override_dh_auto_build:
 
 override_dh_auto_install:
 '''
-    f.write(template.strip())
-    f.close()
-
+        f.write(template.strip())
     print('Create file: ' + os.path.join(prefix, 'debian', 'changelog'))
-    f = open(os.path.join(prefix, 'debian', 'changelog'), 'w')
-
-    template = '''
+    with open(os.path.join(prefix, 'debian', 'changelog'), 'w') as f:
+        template = '''
 cling (%s-1) unstable; urgency=low
 
   * [Debian] Upload to unstable for version: %s
 ''' % (VERSION, VERSION)
-    f.write(template.lstrip())
-    f.close()
-
+        f.write(template.lstrip())
     if '~dev' in VERSION:
         TAG = str(float(VERSION[:VERSION.find('~')]) - 0.1)
-        template = exec_subprocess_check_output('git log v' + TAG + '...HEAD --format="  * %s" | fmt -s', CLING_SRC_DIR)
+        template = exec_subprocess_check_output(
+            f'git log v{TAG}...HEAD --format="  * %s" | fmt -s', CLING_SRC_DIR
+        )
 
-        f = open(os.path.join(prefix, 'debian', 'changelog'), 'a+')
-        f.write(template)
-        f.close()
-
-        f = open(os.path.join(prefix, 'debian', 'changelog'), 'a+')
-        f.write('\n -- ' + SIGNING_USER + '  ' + formatdate(time.time(), tzinfo()) + '\n')
-        f.close()
+        with open(os.path.join(prefix, 'debian', 'changelog'), 'a+') as f:
+            f.write(template)
+        with open(os.path.join(prefix, 'debian', 'changelog'), 'a+') as f:
+            f.write('\n -- ' + SIGNING_USER + '  ' + formatdate(time.time(), tzinfo()) + '\n')
     else:
         TAG = VERSION.replace('v', '')
         if TAG == '0.1':
-            f = open(os.path.join(prefix, 'debian', 'changelog'), 'a+')
-            f.write('\n -- ' + SIGNING_USER + '  ' + formatdate(time.time(), tzinfo()) + '\n')
-            f.close()
+            with open(os.path.join(prefix, 'debian', 'changelog'), 'a+') as f:
+                f.write('\n -- ' + SIGNING_USER + '  ' + formatdate(time.time(), tzinfo()) + '\n')
         STABLE_FLAG = '1'
 
     while TAG != '0.1':
         CMP = TAG
         TAG = str(float(TAG) - 0.1)
         if STABLE_FLAG != '1':
-            f = open(os.path.join(prefix, 'debian', 'changelog'), 'a+')
-            f.write('cling (' + TAG + '-1) unstable; urgency=low\n')
-            f.close()
+            with open(os.path.join(prefix, 'debian', 'changelog'), 'a+') as f:
+                f.write(f'cling ({TAG}' + '-1) unstable; urgency=low\n')
             STABLE_FLAG = '1'
-            template = exec_subprocess_check_output('git log v' + CMP + '...v' + TAG + '--format="  * %s" | fmt -s',
-                                                    CLING_SRC_DIR)
+            template = exec_subprocess_check_output(
+                f'git log v{CMP}...v{TAG}--format="  * %s" | fmt -s',
+                CLING_SRC_DIR,
+            )
 
-            f = open(os.path.join(prefix, 'debian', 'changelog'), 'a+')
-            f.write(template)
-            f.close()
-
-            f = open(os.path.join(prefix, 'debian', 'changelog'), 'a+')
-            f.write('\n -- ' + SIGNING_USER + '  ' + formatdate(time.time(), tzinfo()) + '\n')
-            f.close()
-
-    # Changelog entries from first commit to v0.1
-    f = open(os.path.join(prefix, 'debian', 'changelog'), 'a+')
-    f.write('\nOld Changelog:\n')
-    f.close()
-
+            with open(os.path.join(prefix, 'debian', 'changelog'), 'a+') as f:
+                f.write(template)
+            with open(os.path.join(prefix, 'debian', 'changelog'), 'a+') as f:
+                f.write('\n -- ' + SIGNING_USER + '  ' + formatdate(time.time(), tzinfo()) + '\n')
+    with open(os.path.join(prefix, 'debian', 'changelog'), 'a+') as f:
+        f.write('\nOld Changelog:\n')
     template = exec_subprocess_check_output('git log v0.1 --format="  * %s%n -- %an <%ae>  %cD%n"', CLING_SRC_DIR)
 
-    f = open(os.path.join(prefix, 'debian', 'changelog'), 'a+')
-    f.write(template.encode('utf-8'))
-    f.close()
-
+    with open(os.path.join(prefix, 'debian', 'changelog'), 'a+') as f:
+        f.write(template.encode('utf-8'))
     box_draw("Run debuild to create Debian package")
     exec_subprocess_call('debuild', prefix)
 
@@ -1216,7 +1179,10 @@ def check_redhat(pkg):
             return False
         else:
             print(pkg.ljust(20) + '[OK]'.ljust(30))
-    elif exec_subprocess_check_output("rpm -qa | grep -w %s" % (pkg), '/').strip() == '':
+    elif (
+        exec_subprocess_check_output(f"rpm -qa | grep -w {pkg}", '/').strip()
+        == ''
+    ):
         print(pkg.ljust(20) + '[NOT INSTALLED]'.ljust(30))
         return False
     else:
@@ -1250,17 +1216,21 @@ def rpm_build(REVISION):
     os.makedirs(os.path.join(workdir, 'rpmbuild', 'SOURCES'))
     os.makedirs(os.path.join(workdir, 'rpmbuild', 'SPECS'))
     os.makedirs(os.path.join(workdir, 'rpmbuild', 'tmp'))
-    shutil.move(os.path.join(workdir, os.path.basename(prefix) + '.tar.bz2'),
-                os.path.join(workdir, 'rpmbuild', 'SOURCES'))
+    shutil.move(
+        os.path.join(workdir, f'{os.path.basename(prefix)}.tar.bz2'),
+        os.path.join(workdir, 'rpmbuild', 'SOURCES'),
+    )
 
     box_draw("Generate RPM SPEC file")
-    print('Create file: ' + os.path.join(workdir, 'rpmbuild', 'SPECS', 'cling-%s.spec' % (VERSION)))
-    f = open(os.path.join(workdir, 'rpmbuild', 'SPECS', 'cling-%s.spec' % (VERSION)), 'w')
+    print(
+        'Create file: '
+        + os.path.join(workdir, 'rpmbuild', 'SPECS', f'cling-{VERSION}.spec')
+    )
+    with open(os.path.join(workdir, 'rpmbuild', 'SPECS', f'cling-{VERSION}.spec'), 'w') as f:
+        if REVISION == '':
+            REVISION = '1'
 
-    if REVISION == '':
-        REVISION = '1'
-
-    template = '''
+        template = '''
 %define        __spec_install_post %{nil}
 %define          debug_package %{nil}
 %define        __os_install_post %{_dbpath}/brp-compress
@@ -1333,12 +1303,17 @@ rm -rf %{buildroot}
 * Sun Apr 13 2014  Anirudha Bose <ani07nov@gmail.com>
 - Initial SPEC file of Cling for RPM packaging
 '''
-    f.write(template.strip())
-    f.close()
-
+        f.write(template.strip())
     box_draw('Run rpmbuild program')
-    exec_subprocess_call('rpmbuild --define "_topdir ${PWD}" -bb %s' % (
-        os.path.join(workdir, 'rpmbuild', 'SPECS', 'cling-%s.spec' % (VERSION))), os.path.join(workdir, 'rpmbuild'))
+    exec_subprocess_call(
+        (
+            'rpmbuild --define "_topdir ${PWD}" -bb %s'
+            % os.path.join(
+                workdir, 'rpmbuild', 'SPECS', f'cling-{VERSION}.spec'
+            )
+        ),
+        os.path.join(workdir, 'rpmbuild'),
+    )
     return REVISION
 
 
@@ -1354,13 +1329,16 @@ def check_win(pkg):
             print(pkg.ljust(20) + '[OK]'.ljust(30))
         else:
             print(pkg.ljust(20) + '[NOT INSTALLED]'.ljust(30))
-    # Check for other tools
+    elif (
+        exec_subprocess_check_output(f'where {pkg}', 'C:\\').find(
+            'INFO: Could not find files for the given pattern'
+        )
+        == -1
+    ):
+        print(pkg.ljust(20) + '[OK]'.ljust(30))
+
     else:
-        if exec_subprocess_check_output('where %s' % (pkg), 'C:\\').find(
-                'INFO: Could not find files for the given pattern') != -1:
-            print(pkg.ljust(20) + '[NOT INSTALLED]'.ljust(30))
-        else:
-            print(pkg.ljust(20) + '[OK]'.ljust(30))
+        print(pkg.ljust(20) + '[NOT INSTALLED]'.ljust(30))
 
 
 def is_os_64bit():
@@ -1373,20 +1351,25 @@ def get_win_dep():
         box_draw("Download NSIS compiler")
         html = urlopen('https://sourceforge.net/p/nsis/code/6780/log/?path=/NSIS/tags').read().decode('utf-8')
         pin = '<p>Tagging for release'
-        NSIS_VERSION = html[html.find(pin):html.find('</div>', html.find(pin))].strip(pin + ' ')
-        print('Latest version of NSIS is: ' + NSIS_VERSION)
+        NSIS_VERSION = html[
+            html.find(pin) : html.find('</div>', html.find(pin))
+        ].strip(f'{pin} ')
+        print(f'Latest version of NSIS is: {NSIS_VERSION}')
         wget(url="https://sourceforge.net/projects/nsis/files/NSIS%%203/%s/nsis-%s.zip" % (
             NSIS_VERSION, NSIS_VERSION),
              out_dir=TMP_PREFIX)
-        print('Extracting: ' + os.path.join(TMP_PREFIX, 'nsis-%s.zip' % (NSIS_VERSION)))
-        zip = zipfile.ZipFile(os.path.join(TMP_PREFIX, 'nsis-%s.zip' % (NSIS_VERSION)))
+        print(f"Extracting: {os.path.join(TMP_PREFIX, f'nsis-{NSIS_VERSION}.zip')}")
+        zip = zipfile.ZipFile(os.path.join(TMP_PREFIX, f'nsis-{NSIS_VERSION}.zip'))
         zip.extractall(os.path.join(TMP_PREFIX, 'bin'))
-        print('Remove file: ' + os.path.join(TMP_PREFIX, 'nsis-%s.zip' % (NSIS_VERSION)))
-        os.rename(os.path.join(TMP_PREFIX, 'bin', 'nsis-%s' % (NSIS_VERSION)), os.path.join(TMP_PREFIX, 'bin', 'nsis'))
+        print(f"Remove file: {os.path.join(TMP_PREFIX, f'nsis-{NSIS_VERSION}.zip')}")
+        os.rename(
+            os.path.join(TMP_PREFIX, 'bin', f'nsis-{NSIS_VERSION}'),
+            os.path.join(TMP_PREFIX, 'bin', 'nsis'),
+        )
 
     def tryCmake(cmake):
         try:
-            rslt = exec_subprocess_check_output(cmake + ' --version', TMP_PREFIX)
+            rslt = exec_subprocess_check_output(f'{cmake} --version', TMP_PREFIX)
             vers = [int(v) for v in rslt.split()[2].split('.')]
             if vers[0] >= 3 and (vers[1] > 6 or (vers[1] == 6 and vers[2] >= 2)):
                 return cmake
@@ -1398,7 +1381,7 @@ def get_win_dep():
     cmakeEXE = tryCmake('cmake.exe') or tryCmake(CMAKE)
     if cmakeEXE:
         CMAKE = cmakeEXE
-        box_draw("Using previous CMake: %s" % cmakeEXE)
+        box_draw(f"Using previous CMake: {cmakeEXE}")
         return
 
     box_draw("Download CMake v3.6.2 required for Windows")
@@ -1410,7 +1393,7 @@ def get_win_dep():
              out_dir=TMP_PREFIX, rename_file='cmake-3.6.2.zip')
 
     zip_file = os.path.join(TMP_PREFIX, 'cmake-3.6.2.zip')
-    print('Extracting: ' + zip_file)
+    print(f'Extracting: {zip_file}')
     zip = zipfile.ZipFile(zip_file)
     tmp_bin_dir = os.path.join(TMP_PREFIX, 'bin')
     zip.extractall(tmp_bin_dir)

@@ -11,12 +11,15 @@ import inspect
 SCRIPT_DIR=os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 cling_binary=sys.argv[1]
 
-cmd=subprocess.Popen(["echo .help | %s --nologo" %(cling_binary)], stdout=subprocess.PIPE, shell=True)
+cmd = subprocess.Popen(
+	[f"echo .help | {cling_binary} --nologo"],
+	stdout=subprocess.PIPE,
+	shell=True,
+)
 (out, err) = cmd.communicate()
 if not err:
-	pod_out=open('%s/cling.pod'%(SCRIPT_DIR), 'w')
-	file_handler=open('%s/cling.pod.in'%(SCRIPT_DIR))
-	pod_in=file_handler.read()
-	print(pod_in.replace("%help_msg%", out.decode()), file=pod_out)
-	pod_out.close()
+	with open(f'{SCRIPT_DIR}/cling.pod', 'w') as pod_out:
+		file_handler = open(f'{SCRIPT_DIR}/cling.pod.in')
+		pod_in=file_handler.read()
+		print(pod_in.replace("%help_msg%", out.decode()), file=pod_out)
 	file_handler.close()
