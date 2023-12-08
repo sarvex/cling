@@ -52,9 +52,9 @@ copyright = u'2007-%d, The Cling Team' % date.today().year
 # The short version.
 
 current_file_dir = os.path.dirname(os.path.realpath(__file__))
-CLING_ROOT = current_file_dir + "/.."
+CLING_ROOT = f"{current_file_dir}/.."
 
-with open(CLING_ROOT + "/VERSION", "r") as f:
+with open(f"{CLING_ROOT}/VERSION", "r") as f:
     version = f.read()
 
 # The full version, including alpha/beta/rc tags.

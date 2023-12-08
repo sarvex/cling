@@ -54,15 +54,15 @@ except ValueError:
 class FdReplacer:
     """Stream replacement by pipes."""
     def __init__(self, name):
-        self.name = name
-        self.real_fd = getattr(sys, '__%s__' % name).fileno()
-        self.save_fd = os.dup(self.real_fd)
-        self.pipe_out, pipe_in = os.pipe()
-        os.dup2(pipe_in, self.real_fd)
-        os.close(pipe_in)
-        # make pipe_out non-blocking
-        flags = fcntl(self.pipe_out, F_GETFL)
-        fcntl(self.pipe_out, F_SETFL, flags|os.O_NONBLOCK)
+      self.name = name
+      self.real_fd = getattr(sys, f'__{name}__').fileno()
+      self.save_fd = os.dup(self.real_fd)
+      self.pipe_out, pipe_in = os.pipe()
+      os.dup2(pipe_in, self.real_fd)
+      os.close(pipe_in)
+      # make pipe_out non-blocking
+      flags = fcntl(self.pipe_out, F_GETFL)
+      fcntl(self.pipe_out, F_SETFL, flags|os.O_NONBLOCK)
 
     def restore(self):
         os.close(self.real_fd)
@@ -80,8 +80,7 @@ class ClingKernel(Kernel):
 
     banner = Unicode()
     def _banner_default(self):
-        return 'cling-%s' % self.language_version
-        return self._banner
+      return f'cling-{self.language_version}'
 
     language_info = {'name': 'c++',
                      'codemirror_mode': 'c++',
@@ -96,74 +95,72 @@ class ClingKernel(Kernel):
             help="C++ standard to use, either c++17, c++1z, c++14 or c++11").tag(config=True);
 
     def __init__(self, **kwargs):
-        super(ClingKernel, self).__init__(**kwargs)
-        clingInPath = shutil.which('cling')
-        if not clingInPath:
-            from distutils.spawn import find_executable
-            clingInPath = find_executable('cling')
-        if not clingInPath:
-            raise RuntimeError('Cannot find cling in $PATH. No cling, no fun.')
+      super(ClingKernel, self).__init__(**kwargs)
+      clingInPath = shutil.which('cling')
+      if not clingInPath:
+          from distutils.spawn import find_executable
+          clingInPath = find_executable('cling')
+      if not clingInPath:
+          raise RuntimeError('Cannot find cling in $PATH. No cling, no fun.')
 
-        try:
-            whichCling = os.readlink(clingInPath)
-            whichCling = os.path.join(os.path.dirname(clingInPath), whichCling)
-        except OSError as e:
-            #If cling is not a symlink try a regular file
-            #readlink returns POSIX error EINVAL (22) if the
-            #argument is not a symlink
-            if e.args[0] == 22:
-                whichCling = clingInPath
-            else:
-                raise e
+      try:
+          whichCling = os.readlink(clingInPath)
+          whichCling = os.path.join(os.path.dirname(clingInPath), whichCling)
+      except OSError as e:
+          #If cling is not a symlink try a regular file
+          #readlink returns POSIX error EINVAL (22) if the
+          #argument is not a symlink
+          if e.args[0] == 22:
+              whichCling = clingInPath
+          else:
+              raise e
 
-        if whichCling:
-            clingInstDir = os.path.abspath(os.path.dirname(os.path.dirname(whichCling)))
-            llvmResourceDir = clingInstDir
-        else:
-            raise RuntimeError('cling at ' + clingInPath + ' is unusable. No cling, no fun.')
+      if not whichCling:
+        raise RuntimeError(f'cling at {clingInPath} is unusable. No cling, no fun.')
 
-        for libFolder in ["/lib/libclingJupyter.", "/libexec/lib/libclingJupyter."]:
+      clingInstDir = os.path.abspath(os.path.dirname(os.path.dirname(whichCling)))
+      llvmResourceDir = clingInstDir
+      for libFolder in ["/lib/libclingJupyter.", "/libexec/lib/libclingJupyter."]:
 
-            for ext in ['so', 'dylib', 'dll']:
-                libFilename = clingInstDir + libFolder + ext
-                if os.access(libFilename, os.R_OK):
-                    self.libclingJupyter = ctypes.CDLL(clingInstDir + libFolder + ext,
-                                                    mode = ctypes.RTLD_GLOBAL)
-                    break
-            else:
-                continue
-            break
+          for ext in ['so', 'dylib', 'dll']:
+              libFilename = clingInstDir + libFolder + ext
+              if os.access(libFilename, os.R_OK):
+                  self.libclingJupyter = ctypes.CDLL(clingInstDir + libFolder + ext,
+                                                  mode = ctypes.RTLD_GLOBAL)
+                  break
+          else:
+              continue
+          break
 
-        if not getattr(self, 'libclingJupyter', None):
-            raise RuntimeError('Cannot find ' + clingInstDir + '/lib/libclingJupyter.{so,dylib,dll}')
+      if not getattr(self, 'libclingJupyter', None):
+        raise RuntimeError(f'Cannot find {clingInstDir}' +
+                           '/lib/libclingJupyter.{so,dylib,dll}')
 
-        self.libclingJupyter.cling_create.restype = my_void_p
-        self.libclingJupyter.cling_eval.restype = my_void_p
+      self.libclingJupyter.cling_create.restype = my_void_p
+      self.libclingJupyter.cling_eval.restype = my_void_p
         #build -std=c++11 or -std=c++14 option
-        stdopt = ("-std=" + self.std).encode('utf-8')
-        self.log.info("Using {}".format(stdopt.decode('utf-8')))
-        #from IPython.utils import io
-        #io.rprint("DBG: Using {}".format(stdopt.decode('utf-8')))
-        argv = [b"clingJupyter", stdopt, b"-I" + clingInstDir.encode('utf-8') + b"/include/"]
+      stdopt = f"-std={self.std}".encode('utf-8')
+      self.log.info(f"Using {stdopt.decode('utf-8')}")
+      #from IPython.utils import io
+      #io.rprint("DBG: Using {}".format(stdopt.decode('utf-8')))
+      argv = [b"clingJupyter", stdopt, b"-I" + clingInstDir.encode('utf-8') + b"/include/"]
 
-        # Environment variable CLING_OPTS used to pass arguments to cling
-        extra_opts = os.getenv('CLING_OPTS')
-        if extra_opts:
-            for x in extra_opts.split():
-                argv.append(x.encode('utf-8'))
-                self.log.info("Passing extra argument {} to cling".format(x))
+      if extra_opts := os.getenv('CLING_OPTS'):
+        for x in extra_opts.split():
+          argv.append(x.encode('utf-8'))
+          self.log.info(f"Passing extra argument {x} to cling")
 
-        argc = len(argv)
-        CharPtrArrayType = ctypes.c_char_p * argc
+      argc = len(argv)
+      CharPtrArrayType = ctypes.c_char_p * argc
 
-        llvmResourceDirCP = ctypes.c_char_p(llvmResourceDir.encode('utf8'))
+      llvmResourceDirCP = ctypes.c_char_p(llvmResourceDir.encode('utf8'))
 
-        # The sideband_pipe is used by cling::Jupyter::pushOutput() to publish MIME data to Jupyter.
-        self.sideband_pipe, pipe_in = os.pipe()
-        self.interp = self.libclingJupyter.cling_create(ctypes.c_int(argc), CharPtrArrayType(*argv), llvmResourceDirCP, pipe_in)
+      # The sideband_pipe is used by cling::Jupyter::pushOutput() to publish MIME data to Jupyter.
+      self.sideband_pipe, pipe_in = os.pipe()
+      self.interp = self.libclingJupyter.cling_create(ctypes.c_int(argc), CharPtrArrayType(*argv), llvmResourceDirCP, pipe_in)
 
-        self.libclingJupyter.cling_complete_start.restype = my_void_p
-        self.libclingJupyter.cling_complete_next.restype = my_void_p #c_char_p
+      self.libclingJupyter.cling_complete_start.restype = my_void_p
+      self.libclingJupyter.cling_complete_next.restype = my_void_p #c_char_p
 
     def _process_stdio_data(self, pipe, name):
         """Read from the pipe, send it to IOPub as name stream."""
@@ -175,38 +172,35 @@ class ClingKernel(Kernel):
         }, parent=self._parent_header)
 
     def _recv_dict(self, pipe):
-        """Receive a serialized dict on a pipe
+      """Receive a serialized dict on a pipe
 
         Returns the dictionary.
         """
-        # Wire format:
-        #   // Pipe sees (all numbers are longs, except for the first):
-        #   // - num bytes in a long (sent as a single unsigned char!)
-        #   // - num elements of the MIME dictionary; Jupyter selects one to display.
-        #   // For each MIME dictionary element:
-        #   //   - length of MIME type key
-        #   //   - MIME type key
-        #   //   - size of MIME data buffer (including the terminating 0 for
-        #   //     0-terminated strings)
-        #   //   - MIME data buffer
-        data = {}
-        b1 = os.read(pipe, 1)
-        sizeof_long = struct.unpack('B', b1)[0]
-        if sizeof_long == 8:
-            fmt = 'Q'
-        else:
-            fmt = 'L'
+      # Wire format:
+      #   // Pipe sees (all numbers are longs, except for the first):
+      #   // - num bytes in a long (sent as a single unsigned char!)
+      #   // - num elements of the MIME dictionary; Jupyter selects one to display.
+      #   // For each MIME dictionary element:
+      #   //   - length of MIME type key
+      #   //   - MIME type key
+      #   //   - size of MIME data buffer (including the terminating 0 for
+      #   //     0-terminated strings)
+      #   //   - MIME data buffer
+      data = {}
+      b1 = os.read(pipe, 1)
+      sizeof_long = struct.unpack('B', b1)[0]
+      fmt = 'Q' if sizeof_long == 8 else 'L'
+      buf = os.read(pipe, sizeof_long)
+      num_elements = struct.unpack(fmt, buf)[0]
+      for _ in range(num_elements):
         buf = os.read(pipe, sizeof_long)
-        num_elements = struct.unpack(fmt, buf)[0]
-        for i in range(num_elements):
-            buf = os.read(pipe, sizeof_long)
-            len_key = struct.unpack(fmt, buf)[0]
-            key = os.read(pipe, len_key).decode('utf8')
-            buf = os.read(pipe, sizeof_long)
-            len_value = struct.unpack(fmt, buf)[0]
-            value = os.read(pipe, len_value).decode('utf8')
-            data[key] = value
-        return data
+        len_key = struct.unpack(fmt, buf)[0]
+        key = os.read(pipe, len_key).decode('utf8')
+        buf = os.read(pipe, sizeof_long)
+        len_value = struct.unpack(fmt, buf)[0]
+        value = os.read(pipe, len_value).decode('utf8')
+        data[key] = value
+      return data
 
 
     def _process_sideband_data(self):
@@ -226,30 +220,24 @@ class ClingKernel(Kernel):
         self.replaced_streams = [FdReplacer("stdout"), FdReplacer("stderr")]
 
     def handle_input(self):
-        """Capture stdout, stderr and sideband. Forward them as stream messages."""
-        # create pipe for stdout, stderr
-        select_on = [self.sideband_pipe]
-        for rs in self.replaced_streams:
-            if rs:
-                select_on.append(rs.pipe_out)
+      """Capture stdout, stderr and sideband. Forward them as stream messages."""
+      # create pipe for stdout, stderr
+      select_on = [self.sideband_pipe]
+      select_on.extend(rs.pipe_out for rs in self.replaced_streams if rs)
+      r, w, x = select.select(select_on, [], [], self.flush_interval)
+      if not r:
+          # nothing to read, flush libc's stdout and check again
+          libc.fflush(c_stdout_p)
+          libc.fflush(c_stderr_p)
+          return False
 
-        r, w, x = select.select(select_on, [], [], self.flush_interval)
-        if not r:
-            # nothing to read, flush libc's stdout and check again
-            libc.fflush(c_stdout_p)
-            libc.fflush(c_stderr_p)
-            return False
-
-        for fd in r:
-            if fd == self.sideband_pipe:
-                self._process_sideband_data()
-            else:
-                if fd == self.replaced_streams[0].pipe_out:
-                    rs = 0
-                else:
-                    rs = 1
-                self._process_stdio_data(fd, self.replaced_streams[rs].name)
-        return True
+      for fd in r:
+        if fd == self.sideband_pipe:
+          self._process_sideband_data()
+        else:
+          rs = 0 if fd == self.replaced_streams[0].pipe_out else 1
+          self._process_stdio_data(fd, self.replaced_streams[rs].name)
+      return True
 
     def close_forwards(self):
         """Close the forwarding pipes."""
